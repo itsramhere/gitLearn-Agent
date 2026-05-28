@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { config } from 'dotenv';
 import mongoPlugin from '../src/plugins/mongodb';
 import elasticPlugin from '../src/plugins/elastic';
-import { GitlabMCP } from '../src/mcps/GitlabMCP';
+import { GitlabMCPClient, ElasticMCPClient, MongoMCPClient } from '../src/core/mcpClient';
 import { IssueMatcherAgent } from '../src/agents/IssueMatcherAgent';
 import { ObjectId } from 'mongodb';
 
@@ -63,8 +63,8 @@ async function runStep4Test() {
     console.log("✅ Dummy issues successfully seeded.");
 
     // 3. Set up the Profile and Agent
-    const gitlabMcp = new GitlabMCP();
-    const matcher = new IssueMatcherAgent(fastify, gitlabMcp);
+    const gitlabMcp = new GitlabMCPClient();
+    const matcher = new IssueMatcherAgent(fastify, gitlabMcp, new ElasticMCPClient());
     
     // We'll use a backend-focused profile to see if it correctly ranks the Python/Backend issues higher
     const dummyProfile = {

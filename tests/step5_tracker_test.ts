@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { config } from 'dotenv';
 import mongoPlugin from '../src/plugins/mongodb';
 import elasticPlugin from '../src/plugins/elastic';
-import { GitlabMCP } from '../src/mcps/GitlabMCP';
+import { GitlabMCPClient, ElasticMCPClient, MongoMCPClient } from '../src/core/mcpClient';
 import { IssueMatcherAgent } from '../src/agents/IssueMatcherAgent';
 import { ProgressTrackerAgent } from '../src/agents/ProgressTrackerAgent';
 import { ObjectId } from 'mongodb';
@@ -21,8 +21,8 @@ async function runStep5Test() {
     await fastify.ready();
     console.log("✅ DB Connections successful!");
 
-    const gitlabMcp = new GitlabMCP();
-    const matcher = new IssueMatcherAgent(fastify, gitlabMcp);
+    const gitlabMcp = new GitlabMCPClient();
+    const matcher = new IssueMatcherAgent(fastify, gitlabMcp, new ElasticMCPClient());
     const tracker = new ProgressTrackerAgent(fastify, gitlabMcp);
 
     const studentId = new ObjectId().toHexString();

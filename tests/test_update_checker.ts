@@ -1,7 +1,8 @@
+import { UserRepository } from '../src/repositories/UserRepository';
 import Fastify from 'fastify';
 import { config } from 'dotenv';
 import mongoPlugin from '../src/plugins/mongodb';
-import { GitlabMCP } from '../src/mcps/GitlabMCP';
+import { GitlabMCPClient, ElasticMCPClient, MongoMCPClient } from '../src/core/mcpClient';
 import { CodeExplainerAgent } from '../src/agents/CodeExplainerAgent';
 
 config();
@@ -37,8 +38,8 @@ async function run() {
 
     console.log(`Using User ID: ${user!._id.toString()}`);
 
-    const gitlabMcp = new GitlabMCP();
-    const explainer = new CodeExplainerAgent(fastify, gitlabMcp);
+    const gitlabMcp = new GitlabMCPClient();
+    const explainer = new CodeExplainerAgent(new UserRepository(fastify.mongo.db), gitlabMcp, new MongoMCPClient());
 
     const question = "How does the update checker work in this repo?";
     console.log(`\nAsking: "${question}"`);

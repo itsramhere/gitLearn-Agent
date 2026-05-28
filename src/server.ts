@@ -6,12 +6,13 @@ import { ObjectId } from 'mongodb';
 import mongoPlugin from './plugins/mongodb';
 import elasticPlugin from './plugins/elastic';
 
-import { GitlabMCPClient } from './core/mcpClient';
+import { GitlabMCPClient, ElasticMCPClient, MongoMCPClient } from './core/mcpClient';
 import { ProfilerAgent } from './agents/ProfilerAgent';
 import { CodeExplainerAgent } from './agents/CodeExplainerAgent';
 import { IssueMatcherAgent } from './agents/IssueMatcherAgent';
 import { ProgressTrackerAgent } from './agents/ProgressTrackerAgent';
 import { OrchestratorAgent } from './agents/OrchestratorAgent';
+import { UserRepository } from './repositories/UserRepository';
 
 config();
 
@@ -38,10 +39,16 @@ async function buildServer() {
   // Instantiate and Connect MCPs
   const gitlabMcp = new GitlabMCPClient();
   await gitlabMcp.connect();
+  const elasticMcp = new ElasticMCPClient();
+  await elasticMcp.connect();
+  const mongoMcp = new MongoMCPClient();
+  await mongoMcp.connect();
+  // Instantiate Repositories
+  const userRepository = new UserRepository(fastify.mongo.db);
   // Instantiate Agents
   const profiler = new ProfilerAgent(fastify);
-  const explainer = new CodeExplainerAgent(fastify, gitlabMcp);
-  const matcher = new IssueMatcherAgent(fastify, gitlabMcp);
+  const explainer = new CodeExplainerAgent(userRepository, gitlabMcp, mongoMcp);
+  const matcher = new IssueMatcherAgent(fastify, gitlabMcp, elasticMcp);
   const tracker = new ProgressTrackerAgent(fastify, gitlabMcp);
   
   const orchestrator = new OrchestratorAgent(

@@ -83,3 +83,93 @@ export class GitlabMCPClient {
     return JSON.parse(result.content[0]?.text || "false");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Elastic MCP Client
+// ---------------------------------------------------------------------------
+
+export class ElasticMCPClient {
+  private client: Client;
+  private transport: StdioClientTransport;
+
+  constructor() {
+    this.client = new Client(
+      {
+        name: "elastic-mcp-client",
+        version: "1.0.0",
+      },
+      {
+        capabilities: {},
+      }
+    );
+
+    const isWin = process.platform === "win32";
+    this.transport = new StdioClientTransport({
+      command: isWin ? "npx.cmd" : "npx",
+      args: ["ts-node", "-T", "src/mcps/ElasticMCPServer.ts"],
+      env: process.env as any,
+    });
+  }
+
+  public async connect(): Promise<void> {
+    await this.client.connect(this.transport);
+    console.log("[ElasticMCPClient] Connected to Elastic MCP Server");
+  }
+
+  public async searchIssues(query: string, domain: string): Promise<any[]> {
+    const result = await this.client.callTool({
+      name: "semantic_issue_search",
+      arguments: { query, domain },
+    }) as any;
+
+    if (result.isError) {
+      throw new Error(`MCP Tool Error: ${result.content[0]?.text}`);
+    }
+    return JSON.parse(result.content[0]?.text || "[]");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mongo MCP Client
+// ---------------------------------------------------------------------------
+
+export class MongoMCPClient {
+  private client: Client;
+  private transport: StdioClientTransport;
+
+  constructor() {
+    this.client = new Client(
+      {
+        name: "mongo-mcp-client",
+        version: "1.0.0",
+      },
+      {
+        capabilities: {},
+      }
+    );
+
+    const isWin = process.platform === "win32";
+    this.transport = new StdioClientTransport({
+      command: isWin ? "npx.cmd" : "npx",
+      args: ["ts-node", "-T", "src/mcps/MongoMCPServer.ts"],
+      env: process.env as any,
+    });
+  }
+
+  public async connect(): Promise<void> {
+    await this.client.connect(this.transport);
+    console.log("[MongoMCPClient] Connected to Mongo MCP Server");
+  }
+
+  public async getHistoricalSolutions(topic: string, issueComplexity: string): Promise<any[]> {
+    const result = await this.client.callTool({
+      name: "query_historical_solutions",
+      arguments: { topic, issueComplexity },
+    }) as any;
+
+    if (result.isError) {
+      throw new Error(`MCP Tool Error: ${result.content[0]?.text}`);
+    }
+    return JSON.parse(result.content[0]?.text || "[]");
+  }
+}

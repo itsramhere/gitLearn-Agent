@@ -1,11 +1,11 @@
 import { config } from 'dotenv';
-import { GitlabMCP } from '../src/mcps/GitlabMCP';
+import { GitlabMCPClient, ElasticMCPClient, MongoMCPClient } from '../src/core/mcpClient';
 
 config();
 
 async function runGitLabTest() {
   console.log("=== GitLab MCP Diagnostic Test ===\n");
-  const gitlab = new GitlabMCP();
+  const gitlab = new GitlabMCPClient();
   const repoUrl = "https://gitlab.com/gitlab-org/cli";
 
   console.log(`Target Repository: ${repoUrl}`);

@@ -1,23 +1,40 @@
 import { FastifyInstance } from 'fastify';
 import { ObjectId } from 'mongodb';
 
-// Placeholders for external services
 import { generateWithGemini } from '../core/geminiClient';
-import { GitlabMCPClient } from '../core/mcpClient';
+import { GitlabMCPClient, ElasticMCPClient } from '../core/mcpClient';
 
 
 export class IssueMatcherAgent {
   private fastify: FastifyInstance;
   private gitlabMcp: GitlabMCPClient;
+  private elasticMcp: ElasticMCPClient;
+  private elasticMcpConnected: boolean = false;
 
-  constructor(fastify: FastifyInstance, gitlabMcp: GitlabMCPClient) {
+  constructor(fastify: FastifyInstance, gitlabMcp: GitlabMCPClient, elasticMcp: ElasticMCPClient) {
     this.fastify = fastify;
     this.gitlabMcp = gitlabMcp;
+    this.elasticMcp = elasticMcp;
+  }
+
+  /**
+   * Ensures the Elastic MCP connection is established exactly once.
+   */
+  private async ensureElasticMcpConnected(): Promise<void> {
+    if (!this.elasticMcpConnected) {
+      try {
+        await this.elasticMcp.connect();
+        this.elasticMcpConnected = true;
+      } catch (err: any) {
+        console.error('[IssueMatcherAgent] Failed to connect to Elastic MCP Server:', err);
+        throw new Error('Internal Error: Could not connect to Elastic MCP Server.');
+      }
+    }
   }
 
   /**
    * Finds, scores, and verifies the top 3 issues for a student.
-   * 
+   *
    * @param studentId The student's MongoDB ObjectId string
    * @param profile The student's profile
    * @param conceptMap The student's current concept map
@@ -27,36 +44,15 @@ export class IssueMatcherAgent {
     profile: any,
     conceptMap: any
   ) {
-    // 1. Query Elastic for unsolved/unclaimed issues matching the profile
-    // We search for unsolved issues and prioritize those matching the student's tech stack / domain
-    const techStackQuery = Object.keys(profile.familiarity || {}).join(' ');
-    
-    const searchResponse = await this.fastify.elastic.search({
-      index: 'issues',
-      size: 15, // Fetch a pool of candidates to score
-      query: {
-        bool: {
-          must: [
-            { term: { status: 'unsolved' } }
-          ],
-          should: [
-            { match: { labels: techStackQuery } },
-            { match: { description: techStackQuery } },
-            { match: { title: profile.domain } }
-          ]
-        }
-      }
-    });
+    // Step 0: Ensure Elastic MCP is connected
+    await this.ensureElasticMcpConnected();
 
-    const candidateIssues = searchResponse.hits.hits.map((hit: any) => ({
-      id: hit._id, // Assume Elastic _id is the gitlabIssueId
-      iid: hit._source.iid,
-      projectPath: hit._source.projectPath,
-      title: hit._source.title,
-      description: hit._source.description,
-      labels: hit._source.labels,
-      complexity: hit._source.complexity
-    }));
+    // 1. Query Elastic MCP for unsolved issues matching the student's tech stack
+    const techStackQuery = Object.keys(profile.familiarity || {}).join(' ');
+
+    const candidateIssues = await this.elasticMcp.searchIssues(techStackQuery, profile.domain || '');
+
+    console.log(`[IssueMatcherAgent] Fetched ${candidateIssues.length} candidates from Elastic MCP`);
 
     if (candidateIssues.length === 0) {
       return [];
@@ -101,11 +97,11 @@ export class IssueMatcherAgent {
       console.error('[IssueMatcherAgent] JSON Parse Error:', e, 'Raw string:', jsonStr);
     }
 
-    console.log(`[IssueMatcherAgent] Fetched ${candidateIssues.length} candidates from Elastic. Gemini returned ${rankedIssues.length} ranked issues.`);
+    console.log(`[IssueMatcherAgent] Gemini returned ${rankedIssues.length} ranked issues.`);
 
-    // 3. Fetch live details of the top issues from GitLab MCP to verify they are open
+    // 4. Fetch live details of the top issues from GitLab MCP to verify they are open
     const topThreeVerified = [];
-    
+
     for (const issue of rankedIssues) {
       if (topThreeVerified.length >= 3) break;
 
@@ -119,10 +115,9 @@ export class IssueMatcherAgent {
 
       try {
         console.log(`[IssueMatcherAgent] Verifying live issue iid=${issueIid} in project=${projectPath}`);
-        
-        // Fetch live from GitLab to confirm it hasn't been closed or assigned
+
         const liveIssue = await this.gitlabMcp.getIssueDetails(projectPath, issueIid);
-        
+
         if (liveIssue.state === 'opened' && !liveIssue.assignee) {
           topThreeVerified.push({
             id: issue.id,
@@ -136,7 +131,6 @@ export class IssueMatcherAgent {
         }
       } catch (err: any) {
         console.error(`[IssueMatcherAgent] Failed to fetch live issue iid=${issueIid} in project=${projectPath}. Error: ${err.message}`);
-        // Skip this issue entirely; do not fallback to mock data
         continue;
       }
     }
@@ -147,18 +141,17 @@ export class IssueMatcherAgent {
   /**
    * Called when a student selects one of the recommended issues.
    * Locks the issue with a 48-hour TTL.
-   * 
+   *
    * @param studentId The student's MongoDB ObjectId string
    * @param gitlabIssueId The selected issue ID
    */
   public async claimIssue(studentId: string, gitlabIssueId: string) {
     const issuesCollection = this.fastify.mongo.db.collection('issues');
-    
+
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
     // 1. Write to MongoDB (status, solverId, TTL lock, claimedAt)
-    // Using upsert in case the issue record isn't fully synced to Mongo yet
     await issuesCollection.updateOne(
       { gitlabIssueId },
       {
@@ -179,7 +172,7 @@ export class IssueMatcherAgent {
       { $addToSet: { claimedIssues: gitlabIssueId } as any }
     );
 
-    // 2. Update issue status in Elastic
+    // 2. Update issue status in Elastic (direct call -- standard CRUD, not agentic)
     await this.fastify.elastic.update({
       index: 'issues',
       id: gitlabIssueId,

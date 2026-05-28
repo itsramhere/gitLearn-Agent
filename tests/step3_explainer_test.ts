@@ -1,8 +1,9 @@
 import Fastify from 'fastify';
 import { config } from 'dotenv';
 import mongoPlugin from '../src/plugins/mongodb';
-import { GitlabMCP } from '../src/mcps/GitlabMCP';
+import { GitlabMCPClient, ElasticMCPClient, MongoMCPClient } from '../src/core/mcpClient';
 import { CodeExplainerAgent } from '../src/agents/CodeExplainerAgent';
+import { UserRepository } from '../src/repositories/UserRepository';
 import { ObjectId } from 'mongodb';
 
 config();
@@ -18,9 +19,10 @@ async function runStep3Test() {
     await fastify.ready();
     console.log("✅ DB Connection successful!");
 
-    // 2. Initialize MCP and Agent
-    const gitlabMcp = new GitlabMCP();
-    const explainer = new CodeExplainerAgent(fastify, gitlabMcp);
+    // 2. Initialize MCP, Repository, and Agent
+    const gitlabMcp = new GitlabMCPClient();
+    const userRepository = new UserRepository(fastify.mongo.db);
+    const explainer = new CodeExplainerAgent(userRepository, gitlabMcp, new MongoMCPClient());
     
     const usersCollection = fastify.mongo.db.collection('users');
     const studentId = new ObjectId();

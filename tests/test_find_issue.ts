@@ -1,8 +1,9 @@
+import { UserRepository } from '../src/repositories/UserRepository';
 import Fastify from 'fastify';
 import { config } from 'dotenv';
 import mongoPlugin from '../src/plugins/mongodb';
 import elasticPlugin from '../src/plugins/elastic';
-import { GitlabMCP } from '../src/mcps/GitlabMCP';
+import { GitlabMCPClient, ElasticMCPClient, MongoMCPClient } from '../src/core/mcpClient';
 import { ProfilerAgent } from '../src/agents/ProfilerAgent';
 import { CodeExplainerAgent } from '../src/agents/CodeExplainerAgent';
 import { IssueMatcherAgent } from '../src/agents/IssueMatcherAgent';
@@ -30,12 +31,12 @@ async function run() {
     console.log(`Using Existing User ID: ${user._id.toString()}`);
     console.log(`User Profile: ${JSON.stringify(user.profile, null, 2)}`);
 
-    const gitlabMcp = new GitlabMCP();
+    const gitlabMcp = new GitlabMCPClient();
     
     // Initialize Agents
     const profiler = new ProfilerAgent(fastify);
-    const explainer = new CodeExplainerAgent(fastify, gitlabMcp);
-    const matcher = new IssueMatcherAgent(fastify, gitlabMcp);
+    const explainer = new CodeExplainerAgent(new UserRepository(fastify.mongo.db), gitlabMcp, new MongoMCPClient());
+    const matcher = new IssueMatcherAgent(fastify, gitlabMcp, new ElasticMCPClient());
     const tracker = new ProgressTrackerAgent(fastify, gitlabMcp);
     const orchestrator = new OrchestratorAgent(fastify, profiler, explainer, matcher, tracker);
 
