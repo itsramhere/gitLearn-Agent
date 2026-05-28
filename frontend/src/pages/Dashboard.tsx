@@ -77,7 +77,7 @@ export const Dashboard: React.FC = () => {
 
   if (isLoading && !data) {
     return (
-      <div className="flex h-screen bg-[#0f172a] items-center justify-center flex-col gap-4">
+      <div className="flex h-screen bg-black items-center justify-center flex-col gap-4">
         <div className="w-10 h-10 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
         <div className="text-indigo-400 font-medium tracking-wider animate-pulse">Loading Workspace...</div>
       </div>
@@ -96,7 +96,7 @@ export const Dashboard: React.FC = () => {
 
   if (error && !data) {
     return (
-      <div className="flex h-screen bg-[#0f172a] items-center justify-center p-6">
+      <div className="flex h-screen bg-black items-center justify-center p-6">
         <div className="max-w-md text-center p-8 bg-slate-900 border border-rose-500/30 rounded-2xl shadow-2xl">
           <svg className="w-12 h-12 text-rose-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           <h2 className="text-xl font-semibold text-slate-200 mb-2">Connection Error</h2>
@@ -107,9 +107,9 @@ export const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#0f172a] overflow-hidden font-sans">
+    <div className="flex flex-col h-screen bg-black overflow-hidden font-sans">
       {/* Top Bar */}
-      <div className="h-16 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/60 flex items-center px-6 justify-between flex-shrink-0 z-30 shadow-sm">
+      <div className="h-16 bg-black backdrop-blur-md border-b border-slate-800/60 flex items-center px-6 justify-between flex-shrink-0 z-30 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.4)]">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
@@ -126,7 +126,7 @@ export const Dashboard: React.FC = () => {
               type="text" 
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
-              className="w-full bg-slate-900 text-slate-200 text-sm font-medium rounded-lg pl-10 pr-4 py-2 border border-slate-700/50 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all hover:border-slate-600"
+              className="w-full bg-black text-slate-200 text-sm font-medium rounded-lg pl-10 pr-4 py-2 border border-transparent focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all hover:border-slate-700/50"
               placeholder="Target Repository URL (e.g. https://gitlab.com/gitlab-org/cli)"
             />
           </div>

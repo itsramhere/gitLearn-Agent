@@ -5,11 +5,14 @@
   "dependencies": {
     "@elastic/elasticsearch": "^9.4.1",
     "@fastify/cors": "^11.2.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^25.9.1",
     "dotenv": "^17.4.2",
     "fastify": "^5.8.5",
     "mongodb": "^7.2.0",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "zod": "^4.4.3",
+    "zod-to-json-schema": "^3.25.2"
   }
 }

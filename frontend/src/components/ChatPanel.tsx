@@ -48,7 +48,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, o
   };
 
   return (
-    <div className="flex-1 flex flex-col h-screen bg-[#0f172a] relative">
+    <div className="flex-1 flex flex-col h-screen bg-black bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:24px_24px] relative">
       {/* Header with Find Issue button */}
       <div className="flex-none p-4 sm:p-6 pb-2 flex justify-end z-20">
         <button
@@ -61,16 +61,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, o
       </div>
 
       {/* Top Gradient Overlay for smooth scroll fading */}
-      <div className="absolute top-16 left-0 right-0 h-6 bg-gradient-to-b from-[#0f172a] to-transparent z-10 pointer-events-none"></div>
+      <div className="absolute top-16 left-0 right-0 h-6 bg-gradient-to-b from-black to-transparent z-10 pointer-events-none"></div>
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar pt-8 pb-4">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-500 animate-pulse">
-            <svg className="w-12 h-12 mb-4 text-slate-700/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            <p className="tracking-wide">No messages yet. Start the conversation!</p>
+          <div className="h-full flex flex-col items-center justify-center text-slate-500/50">
+            <p className="text-[11px] tracking-widest uppercase font-semibold">No messages yet</p>
           </div>
         ) : (
           messages.map((msg, idx) => (
@@ -114,7 +111,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, o
       </div>
 
       {/* Input Area */}
-      <div className="p-4 sm:p-5 bg-slate-950/80 backdrop-blur-md border-t border-slate-800/60 z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]">
+      <div className="p-4 bg-black backdrop-blur-md border-t border-slate-800/40 z-20">
         <div className="max-w-4xl mx-auto relative flex items-center group">
           <input
             type="text"
@@ -123,20 +120,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendMessage, o
             onKeyDown={handleKeyDown}
             placeholder="Type your message..."
             disabled={isSending}
-            className="w-full bg-slate-900/80 text-slate-200 placeholder-slate-500 rounded-full pl-6 pr-14 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all shadow-inner disabled:opacity-50"
+            className="w-full bg-black text-slate-200 text-sm placeholder-slate-500/70 rounded-xl pl-4 pr-12 py-3.5 focus:outline-none focus:ring-1 focus:ring-purple-500/50 border border-slate-700/40 hover:border-slate-600 transition-colors shadow-sm disabled:opacity-50"
           />
           <button
             onClick={handleSend}
             disabled={!inputValue.trim() || isSending}
-            className="absolute right-2.5 p-2.5 rounded-full bg-blue-600 text-white hover:bg-blue-500 transition-all disabled:opacity-50 disabled:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg group-focus-within:bg-blue-500"
+            className="absolute right-2.5 p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-indigo-500/10 disabled:hover:text-indigo-400 focus:outline-none"
           >
-            <svg className="w-5 h-5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
           </button>
         </div>
-        <div className="text-center mt-2.5">
-          <span className="text-[10px] text-slate-500/70 font-medium tracking-wide">GitLearn Agent may make mistakes. Always verify code.</span>
+        <div className="text-center mt-2">
+          <span className="text-[10px] text-slate-500/50 font-medium">GitLearn Agent may make mistakes. Always verify code.</span>
         </div>
       </div>
     </div>

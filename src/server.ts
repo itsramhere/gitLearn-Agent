@@ -6,7 +6,7 @@ import { ObjectId } from 'mongodb';
 import mongoPlugin from './plugins/mongodb';
 import elasticPlugin from './plugins/elastic';
 
-import { GitlabMCP } from './mcps/GitlabMCP';
+import { GitlabMCPClient } from './core/mcpClient';
 import { ProfilerAgent } from './agents/ProfilerAgent';
 import { CodeExplainerAgent } from './agents/CodeExplainerAgent';
 import { IssueMatcherAgent } from './agents/IssueMatcherAgent';
@@ -35,9 +35,9 @@ async function buildServer() {
     await fastify.register(elasticPlugin, {});
   }
 
-  // Instantiate MCPs
-  const gitlabMcp = new GitlabMCP();
-
+  // Instantiate and Connect MCPs
+  const gitlabMcp = new GitlabMCPClient();
+  await gitlabMcp.connect();
   // Instantiate Agents
   const profiler = new ProfilerAgent(fastify);
   const explainer = new CodeExplainerAgent(fastify, gitlabMcp);
@@ -192,6 +192,93 @@ async function buildServer() {
       return reply.status(500).send({ error: err.message });
     }
   });
+  // 4c. POST /api/admin/sync-issues
+  fastify.post('/api/admin/sync-issues', async (request: any, reply: any) => {
+    const { repoUrl } = request.body as { repoUrl: string };
+    try {
+      if (!repoUrl) {
+        return reply.status(400).send({ error: 'repoUrl is required' });
+      }
+      
+      const gitlabToken = process.env.GITLAB_TOKEN || '';
+      let projectPath = repoUrl.replace(/^https?:\/\/[^\/]+\//, '').replace(/\.git$/, '');
+      const encodedProjectPath = encodeURIComponent(projectPath);
+
+      fastify.log.info(`Syncing issues for project: ${projectPath}`);
+
+      const headers = {
+        'Authorization': `Bearer ${gitlabToken}`,
+      };
+
+      const res = await fetch(`https://gitlab.com/api/v4/projects/${encodedProjectPath}/issues?state=opened&per_page=50`, { headers });
+      if (!res.ok) {
+        throw new Error(`GitLab API returned status ${res.status}`);
+      }
+      const allIssues = await res.json();
+
+      if (!Array.isArray(allIssues)) {
+        throw new Error('Failed to fetch issues or received non-array response from GitLab.');
+      }
+
+      const issuesCollection = fastify.mongo.db.collection('issues');
+
+      // Delete existing issues for this project path
+      await issuesCollection.deleteMany({ projectPath });
+      
+      try {
+        await fastify.elastic.deleteByQuery({
+          index: 'issues',
+          query: { match: { projectPath } }
+        });
+      } catch (err: any) {
+        if (err.meta?.statusCode !== 404) {
+          fastify.log.warn('Elasticsearch deleteByQuery error:', err);
+        }
+      }
+
+      if (allIssues.length === 0) {
+        return reply.send({ success: true, message: 'No open issues found.', count: 0 });
+      }
+
+      for (const issue of allIssues) {
+        const gitlabIssueId = issue.id.toString();
+        const iid = issue.iid.toString();
+        const safeLabels = issue.labels || [];
+
+        // MongoDB
+        await issuesCollection.insertOne({
+          gitlabIssueId,
+          iid,
+          projectPath,
+          status: 'unsolved',
+          record: issue,
+        });
+
+        // Elasticsearch
+        await fastify.elastic.index({
+          index: 'issues',
+          id: gitlabIssueId,
+          document: {
+            title: issue.title,
+            description: issue.description,
+            labels: safeLabels,
+            iid,
+            projectPath,
+            complexity: safeLabels.includes('good first issue') ? 'beginner' : 'intermediate',
+            status: 'unsolved',
+          }
+        });
+      }
+
+      await fastify.elastic.indices.refresh({ index: 'issues' });
+      
+      return reply.send({ success: true, count: allIssues.length, message: `Successfully synced ${allIssues.length} issues.` });
+    } catch (err: any) {
+      fastify.log.error(err);
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
 
   // 5. GET /api/issues/:studentId
   fastify.get('/api/issues/:studentId', { preHandler: [requireAuth] }, async (request: any, reply: any) => {

@@ -1,12 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { ObjectId } from 'mongodb';
-import { GitlabMCP } from '../mcps/GitlabMCP';
+import { GitlabMCPClient } from '../core/mcpClient';
 
 export class ProgressTrackerAgent {
   private fastify: FastifyInstance;
-  private gitlabMcp: GitlabMCP;
+  private gitlabMcp: GitlabMCPClient;
 
-  constructor(fastify: FastifyInstance, gitlabMcp: GitlabMCP) {
+  constructor(fastify: FastifyInstance, gitlabMcp: GitlabMCPClient) {
     this.fastify = fastify;
     this.gitlabMcp = gitlabMcp;
   }

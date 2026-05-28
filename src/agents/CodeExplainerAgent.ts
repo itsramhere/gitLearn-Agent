@@ -3,13 +3,13 @@ import { ObjectId } from 'mongodb';
 
 // Placeholders for external services
 import { generateWithGemini } from '../core/geminiClient';
-import { GitlabMCP } from '../mcps/GitlabMCP';
+import { GitlabMCPClient } from '../core/mcpClient';
 
 export class CodeExplainerAgent {
   private fastify: FastifyInstance;
-  private gitlabMcp: GitlabMCP;
+  private gitlabMcp: GitlabMCPClient;
 
-  constructor(fastify: FastifyInstance, gitlabMcp: GitlabMCP) {
+  constructor(fastify: FastifyInstance, gitlabMcp: GitlabMCPClient) {
     this.fastify = fastify;
     this.gitlabMcp = gitlabMcp;
   }

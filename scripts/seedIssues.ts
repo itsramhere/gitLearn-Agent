@@ -33,28 +33,16 @@ async function seed() {
     'Authorization': `Bearer ${GITLAB_TOKEN}`,
   };
 
-  // Fetch help-wanted
-  const res1 = await fetch(`https://gitlab.com/api/v4/projects/${PROJECT_PATH}/issues?state=opened&labels=help-wanted`, { headers });
-  const helpWantedIssues = await res1.json();
+  // Fetch latest 50 opened issues
+  const res1 = await fetch(`https://gitlab.com/api/v4/projects/${PROJECT_PATH}/issues?state=opened&per_page=50`, { headers });
+  const allIssues = await res1.json();
 
-  // Fetch good first issue
-  const res2 = await fetch(`https://gitlab.com/api/v4/projects/${PROJECT_PATH}/issues?state=opened&labels=good%20first%20issue`, { headers });
-  const goodFirstIssues = await res2.json();
-
-  if (!Array.isArray(helpWantedIssues) || !Array.isArray(goodFirstIssues)) {
+  if (!Array.isArray(allIssues)) {
     console.error('Failed to fetch issues or received non-array response.');
-    console.log(helpWantedIssues);
-    console.log(goodFirstIssues);
+    console.log(allIssues);
     process.exit(1);
   }
 
-  // Combine and deduplicate
-  const allIssuesMap = new Map();
-  [...helpWantedIssues, ...goodFirstIssues].forEach((issue: any) => {
-    allIssuesMap.set(issue.id, issue);
-  });
-  
-  const allIssues = Array.from(allIssuesMap.values());
   console.log(`Fetched ${allIssues.length} unique issues.`);
 
   if (allIssues.length === 0) {
@@ -97,16 +85,17 @@ async function seed() {
     });
 
     // Elasticsearch
+    const safeLabels = issue.labels || [];
     await elasticClient.index({
       index: 'issues',
       id: gitlabIssueId,
       document: {
         title: issue.title,
         description: issue.description,
-        labels: issue.labels,
+        labels: safeLabels,
         iid,
         projectPath,
-        complexity: issue.labels.includes('good first issue') ? 'beginner' : 'intermediate',
+        complexity: safeLabels.includes('good first issue') ? 'beginner' : 'intermediate',
         status: 'unsolved',
       }
     });

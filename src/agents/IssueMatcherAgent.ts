@@ -3,13 +3,14 @@ import { ObjectId } from 'mongodb';
 
 // Placeholders for external services
 import { generateWithGemini } from '../core/geminiClient';
-import { GitlabMCP } from '../mcps/GitlabMCP';
+import { GitlabMCPClient } from '../core/mcpClient';
+
 
 export class IssueMatcherAgent {
   private fastify: FastifyInstance;
-  private gitlabMcp: GitlabMCP;
+  private gitlabMcp: GitlabMCPClient;
 
-  constructor(fastify: FastifyInstance, gitlabMcp: GitlabMCP) {
+  constructor(fastify: FastifyInstance, gitlabMcp: GitlabMCPClient) {
     this.fastify = fastify;
     this.gitlabMcp = gitlabMcp;
   }
@@ -81,7 +82,8 @@ export class IssueMatcherAgent {
       3. Concept Overlap: If the issue relates to a module or file already in the student's concept map and marked as understood, that issue should score higher. If the issue relates to a module the student has not yet studied at all, it should score lower.
       
       Rank the issues by their total score.
-      Output a JSON array of the ranked issues. Each object must have:
+      Output a JSON array of ALL the candidate issues, ranked by their total score. You MUST return every candidate issue in your response.
+      Each object must have:
       - "id": the issue ID
       - "iid": the issue IID
       - "projectPath": the project path
@@ -92,7 +94,14 @@ export class IssueMatcherAgent {
     const scoredIssuesText = await generateWithGemini(scoringPrompt);
     const match = scoredIssuesText.match(/\[[\s\S]*\]/);
     const jsonStr = match ? match[0] : scoredIssuesText.replace(/```json|```/g, '');
-    const rankedIssues = JSON.parse(jsonStr);
+    let rankedIssues = [];
+    try {
+      rankedIssues = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('[IssueMatcherAgent] JSON Parse Error:', e, 'Raw string:', jsonStr);
+    }
+
+    console.log(`[IssueMatcherAgent] Fetched ${candidateIssues.length} candidates from Elastic. Gemini returned ${rankedIssues.length} ranked issues.`);
 
     // 3. Fetch live details of the top issues from GitLab MCP to verify they are open
     const topThreeVerified = [];
