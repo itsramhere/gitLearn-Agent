@@ -18,21 +18,6 @@ export class IssueMatcherAgent {
   }
 
   /**
-   * Ensures the Elastic MCP connection is established exactly once.
-   */
-  private async ensureElasticMcpConnected(): Promise<void> {
-    if (!this.elasticMcpConnected) {
-      try {
-        await this.elasticMcp.connect();
-        this.elasticMcpConnected = true;
-      } catch (err: any) {
-        console.error('[IssueMatcherAgent] Failed to connect to Elastic MCP Server:', err);
-        throw new Error('Internal Error: Could not connect to Elastic MCP Server.');
-      }
-    }
-  }
-
-  /**
    * Finds, scores, and verifies the top 3 issues for a student.
    *
    * @param studentId The student's MongoDB ObjectId string
@@ -44,15 +29,27 @@ export class IssueMatcherAgent {
     profile: any,
     conceptMap: any
   ) {
-    // Step 0: Ensure Elastic MCP is connected
-    await this.ensureElasticMcpConnected();
-
     // 1. Query Elastic MCP for unsolved issues matching the student's tech stack
     const techStackQuery = Object.keys(profile.familiarity || {}).join(' ');
 
-    const candidateIssues = await this.elasticMcp.searchIssues(techStackQuery, profile.domain || '');
-
-    console.log(`[IssueMatcherAgent] Fetched ${candidateIssues.length} candidates from Elastic MCP`);
+    let candidateIssues: any[] = [];
+    try {
+      candidateIssues = await this.elasticMcp.searchIssues(techStackQuery, profile.domain || '');
+      console.log(`[IssueMatcherAgent] Fetched ${candidateIssues.length} candidates from Elastic MCP`);
+    } catch (err: any) {
+      console.warn(`[IssueMatcherAgent] Elastic MCP failed (${err.message}). Falling back to MongoDB.`);
+      const issuesCollection = this.fastify.mongo.db.collection('issues');
+      const mongoIssues = await issuesCollection.find({ status: 'unsolved' }).limit(20).toArray();
+      candidateIssues = mongoIssues.map((doc: any) => ({
+        id: doc.gitlabIssueId,
+        iid: doc.iid,
+        title: doc?.record?.title || 'Unknown Title',
+        description: doc?.record?.description || '',
+        labels: doc?.record?.labels || [],
+        projectPath: doc.projectPath
+      }));
+      console.log(`[IssueMatcherAgent] Fetched ${candidateIssues.length} candidates from MongoDB Fallback`);
+    }
 
     if (candidateIssues.length === 0) {
       return [];

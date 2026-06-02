@@ -1,72 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import type { StudentProfile, ConceptMap, ClaimedIssue } from '../types';
+import type { ClaimedIssue } from '../types';
+
+type ViewMode = 'chat' | 'issues' | 'concept-map' | 'progress' | 'profile';
 
 interface SidebarProps {
-  profile: StudentProfile;
-  conceptMap: ConceptMap;
+  activeView: ViewMode;
+  onNavigate: (view: ViewMode) => void;
   claimedIssue: ClaimedIssue | null;
-  onFindIssues: () => void;
-  hasActiveClaim: boolean;
   onSolveIssue: (issueId: string, prUrl: string) => void;
   onForfeitIssue: (issueId: string) => void;
+  gitlabUsername?: string;
+  gitlabAvatarUrl?: string;
+  onLogout?: () => void;
 }
 
-const CollapsiblePanel = ({ title, children, defaultOpen = true, summary }: { title: string, children: React.ReactNode, defaultOpen?: boolean, summary?: string }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  
-  return (
-    <div className="border-b border-slate-800/40">
-      <button 
-        onClick={() => setIsOpen(!isOpen)} 
-        className="w-full flex items-center justify-between p-4 text-slate-200 hover:bg-slate-800/20 transition-all duration-200 focus:outline-none"
-      >
-        <div className="flex flex-col items-start text-left">
-          <span className="font-semibold text-[10px] tracking-wider uppercase text-slate-500">{title}</span>
-          {!isOpen && summary && <span className="text-xs text-slate-400 mt-0.5">{summary}</span>}
-        </div>
-        <svg 
-          className={`w-4 h-4 text-slate-500 transition-transform duration-300 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} 
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      
-      <div 
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[1000px] opacity-100 mb-4' : 'max-h-0 opacity-0'}`}
-      >
-        <div className="px-4">{children}</div>
-      </div>
-    </div>
-  );
-};
-
-const getSkillBadge = (level: number | string) => {
-  const normalized = typeof level === 'string' ? level.toLowerCase().trim() : level;
-  if (normalized === 'advanced' || (typeof normalized === 'number' && normalized >= 4)) {
-    return (
-      <span className="flex items-center gap-1.5 text-slate-300">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-        Advanced
-      </span>
-    );
-  }
-  if (normalized === 'intermediate' || (typeof normalized === 'number' && normalized === 3)) {
-    return (
-      <span className="flex items-center gap-1.5 text-slate-300">
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-        Intermediate
-      </span>
-    );
-  }
-  return (
-    <span className="flex items-center gap-1.5 text-slate-300">
-      <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-      Beginner
-    </span>
-  );
-};
-
+/* ── Countdown timer ── */
 const CountdownTimer = ({ expiresAt }: { expiresAt: Date }) => {
   const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number } | null>(null);
 
@@ -75,283 +23,300 @@ const CountdownTimer = ({ expiresAt }: { expiresAt: Date }) => {
       const now = new Date();
       const exp = new Date(expiresAt);
       const diffMs = exp.getTime() - now.getTime();
-      
       if (diffMs <= 0) {
         setTimeLeft({ hours: 0, minutes: 0 });
         return;
       }
-      
       setTimeLeft({
         hours: Math.floor(diffMs / (1000 * 60 * 60)),
-        minutes: Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+        minutes: Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)),
       });
     };
-    
     update();
     const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
   }, [expiresAt]);
 
-  if (!timeLeft) return <span className="text-xs text-slate-500">Calculating...</span>;
+  if (!timeLeft) return <span className="text-xs text-[#A57548]">Calculating…</span>;
 
   return (
-    <span className="font-mono text-xs font-medium text-slate-300 bg-slate-800/40 px-2 py-0.5 rounded border border-slate-700/40">
-      {timeLeft.hours}h {timeLeft.minutes}m remaining
+    <span className="font-mono text-xs font-medium text-[#d4a574] bg-[#2a2018] px-2 py-0.5 rounded border border-[#3d2e1f]">
+      {timeLeft.hours}h {timeLeft.minutes}m left
     </span>
   );
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ profile, conceptMap, claimedIssue, onFindIssues, hasActiveClaim, onSolveIssue, onForfeitIssue }) => {
+/* ── Nav item ── */
+const NavItem = ({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    onClick={onClick}
+    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 group
+      ${active
+        ? 'bg-[#2a2018] text-[#A57548]'
+        : 'text-[#A57548] hover:bg-[#2a2018]/60 hover:text-[#A57548]'
+      }`}
+  >
+    <span className={`flex-shrink-0 w-5 h-5 flex items-center justify-center transition-colors ${active ? 'text-[#d4a574]' : 'text-[#A57548] group-hover:text-[#A57548]'}`}>
+      {icon}
+    </span>
+    {label}
+  </button>
+);
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeView,
+  onNavigate,
+  claimedIssue,
+  onSolveIssue,
+  onForfeitIssue,
+  gitlabUsername,
+  gitlabAvatarUrl,
+  onLogout,
+}) => {
   const [showSolveForm, setShowSolveForm] = useState(false);
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false);
   const [prUrl, setPrUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   return (
-    <aside className="w-[300px] flex-shrink-0 h-screen bg-black border-r border-slate-800/40 overflow-y-auto flex flex-col z-10 custom-scrollbar">
+    <aside className="w-[260px] flex-shrink-0 h-screen bg-[#171310] border-r border-[#2e2219] flex flex-col z-10">
       
-      {/* Header Area */}
-      <div className="p-5 border-b border-slate-800/40 bg-transparent flex items-center gap-3">
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center shadow-md shadow-indigo-500/20">
-          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
-        </div>
-        <div>
-          <h1 className="text-slate-200 font-semibold tracking-wide text-[13px]">GitLearn Agent</h1>
-          <p className="text-[10px] text-slate-500 font-medium">Student Dashboard</p>
+      {/* ─── Header ─── */}
+      <div className="p-4 flex items-center justify-between flex-shrink-0">
+        <span className="text-[#A57548] font-semibold tracking-wide text-[15px]">GitLearn</span>
+        <div className="flex items-center gap-1">
+          {/* Search icon */}
+          <button className="p-1.5 rounded-lg text-[#A57548] hover:text-[#A57548] hover:bg-[#2a2018] transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          </button>
+          {/* New chat icon */}
+          <button
+            onClick={() => onNavigate('chat')}
+            className="p-1.5 rounded-lg text-[#A57548] hover:text-[#A57548] hover:bg-[#2a2018] transition-colors"
+            title="New chat"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {/* Student Profile Panel */}
-        <CollapsiblePanel title="Student Profile">
-          <div className="space-y-3">
-            <div className="flex items-center flex-wrap gap-2 text-[11px] text-slate-400">
-              <span className="font-medium text-slate-300">{profile.domain || 'General'}</span>
-              <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-              <span>{profile.yearsOfExperience}y exp</span>
-              <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-              {getSkillBadge(profile.inferredSkillLevel)}
-            </div>
-            
-            {profile.goals && (
-              <div className="pt-1">
-                <div className="text-[10px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Primary Goals</div>
-                <ul className="space-y-1">
-                  {(Array.isArray(profile.goals) ? profile.goals : [profile.goals]).map((goal, i) => (
-                    <li key={i} className="flex items-start gap-1.5 text-[11px] text-slate-400 leading-snug">
-                      <svg className="w-3 h-3 text-purple-400/80 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      <span>{goal}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </CollapsiblePanel>
-
-        {/* Concept Map Panel */}
-        <CollapsiblePanel 
-          title="Concept Map" 
-          summary={`${conceptMap.filesExplained.length} files explored, ${conceptMap.conceptsUnderstood.length} concepts understood`}
+      {/* ─── Navigation ─── */}
+      <div className="px-3 flex-shrink-0">
+        <button
+          onClick={() => onNavigate('chat')}
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-[13px] font-medium text-[#A57548] hover:bg-[#2a2018]/60 hover:text-[#A57548] transition-all duration-150 mb-2"
         >
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Files Explored</div>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {conceptMap.filesExplained.length > 0 ? (
-                  conceptMap.filesExplained.map((file, i) => (
-                    <span key={i} className="px-1.5 py-0.5 text-[10px] rounded bg-slate-800/60 text-slate-400 border border-slate-700/30 font-mono truncate max-w-full">
-                      {file}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-[10px] text-slate-600 italic">No files explained yet</span>
-                )}
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <svg className="w-3 h-3 text-emerald-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Concepts Understood</div>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {conceptMap.conceptsUnderstood.length > 0 ? (
-                  conceptMap.conceptsUnderstood.map((concept, i) => (
-                    <span key={i} className="px-2 py-0.5 text-[10px] font-medium rounded bg-emerald-500/5 text-emerald-400/90 border border-emerald-500/20">
-                      {concept}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-[10px] text-slate-600 italic">No concepts analyzed</span>
-                )}
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <svg className="w-3 h-3 text-rose-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Concepts Confused</div>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {conceptMap.conceptsConfused.length > 0 ? (
-                  conceptMap.conceptsConfused.map((concept, i) => (
-                    <span key={i} className="px-2 py-0.5 text-[10px] font-medium rounded bg-rose-500/5 text-rose-400/90 border border-rose-500/20">
-                      {concept}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-[10px] text-slate-600 italic">No confusion detected</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </CollapsiblePanel>
+          <svg className="w-4 h-4 text-[#A57548]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          New chat
+        </button>
+      </div>
 
-        {/* Find Issues Button */}
-        <div className="px-4 py-3 border-b border-slate-800/40">
-          <div className="relative group">
-            <button
-              onClick={onFindIssues}
-              disabled={hasActiveClaim}
-              className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg font-medium text-xs transition-all duration-200 ${
-                hasActiveClaim
-                  ? 'bg-transparent text-slate-600 border border-slate-800 cursor-not-allowed'
-                  : 'bg-transparent text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 active:scale-[0.98]'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
-              </svg>
-              Find Issues For Me
-            </button>
-          </div>
+      <div className="px-3 mb-2 flex-shrink-0">
+        <div className="h-px bg-[#2e2219]" />
+      </div>
+
+      {/* Feature Nav */}
+      <nav className="px-3 space-y-0.5 flex-shrink-0">
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" /></svg>}
+          label="Issue Matcher"
+          active={activeView === 'issues'}
+          onClick={() => onNavigate('issues')}
+        />
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>}
+          label="Code Explainer"
+          active={false}
+          onClick={() => onNavigate('chat')}
+        />
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>}
+          label="Concept Map"
+          active={activeView === 'concept-map'}
+          onClick={() => onNavigate('concept-map')}
+        />
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
+          label="Progress Tracker"
+          active={activeView === 'progress'}
+          onClick={() => onNavigate('progress')}
+        />
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>}
+          label="Profile"
+          active={activeView === 'profile'}
+          onClick={() => onNavigate('profile')}
+        />
+      </nav>
+
+      {/* ─── Active Issue Section ─── */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 mt-4">
+        <div className="mb-2">
+          <span className="text-[10px] font-semibold text-[#A57548] uppercase tracking-wider px-3">Active Issue</span>
         </div>
 
-        {/* Active Issue Panel */}
-        <CollapsiblePanel title="Active Issue">
-          {!claimedIssue ? (
-            <div className="text-[11px] text-slate-500 pb-2">
-              No active issue
+        {!claimedIssue ? (
+          <div className="px-3 py-4">
+            <p className="text-[12px] text-[#A57548] italic">No active issue claimed.</p>
+            <button
+              onClick={() => onNavigate('issues')}
+              className="mt-2 text-[12px] text-[#d4a574] hover:text-[#e8b888] transition-colors font-medium"
+            >
+              Find an issue →
+            </button>
+          </div>
+        ) : (
+          <div className="bg-[#2a2018] rounded-xl border border-[#3d2e1f] p-3.5 space-y-3 animate-fadeIn">
+            {/* Issue ID & status */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[#d4a574] font-mono text-xs font-medium">
+                <svg className="w-3.5 h-3.5 text-[#A57548]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
+                {claimedIssue.gitlabIssueId}
+              </div>
+              <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium rounded-full bg-[#d4a574]/10 text-[#d4a574] border border-[#d4a574]/20 capitalize">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#d4a574] animate-pulse" />
+                {claimedIssue.status}
+              </span>
             </div>
-          ) : (
-            <div className="space-y-3 pb-2">
-              <div className="flex justify-between items-center">
-                <div className="text-indigo-400 font-mono text-xs flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5 text-indigo-500/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
-                  {claimedIssue.gitlabIssueId}
-                </div>
-                <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 capitalize flex items-center gap-1.5">
-                  <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></span>
-                  {claimedIssue.status}
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Time Left</div>
-                <CountdownTimer expiresAt={claimedIssue.expiresAt} />
-              </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex gap-2">
-                {/* Mark as Solved */}
-                {!showSolveForm && !showForfeitConfirm && (
+            {/* Timer */}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-[#A57548] uppercase tracking-wider">Time Left</span>
+              <CountdownTimer expiresAt={claimedIssue.expiresAt} />
+            </div>
+
+            {/* Action buttons */}
+            <div className="pt-1 flex gap-2">
+              {!showSolveForm && !showForfeitConfirm && (
+                <>
                   <button
                     onClick={() => { setShowSolveForm(true); setShowForfeitConfirm(false); }}
-                    className="flex-1 py-1.5 px-2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all text-[11px] font-medium flex items-center justify-center gap-1"
+                    className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all text-[11px] font-medium flex items-center justify-center gap-1"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    Solved
+                    Submit PR
                   </button>
-                )}
-                
-                {/* Forfeit Issue */}
-                {!showForfeitConfirm && !showSolveForm && (
                   <button
                     onClick={() => { setShowForfeitConfirm(true); setShowSolveForm(false); }}
-                    className="flex-1 py-1.5 px-2 rounded bg-rose-500/5 text-rose-400 border border-rose-500/15 hover:bg-rose-500/10 transition-all text-[11px] font-medium flex items-center justify-center gap-1"
+                    className="flex-1 py-1.5 px-2 rounded-lg bg-rose-500/5 text-rose-400 border border-rose-500/15 hover:bg-rose-500/10 transition-all text-[11px] font-medium flex items-center justify-center gap-1"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     Forfeit
                   </button>
-                )}
-              </div>
-
-              {/* Solve Form (inline) */}
-              {showSolveForm && (
-                <div className="bg-slate-900/80 border border-emerald-500/20 rounded p-2.5 space-y-2">
-                  <div className="text-[9px] font-semibold text-emerald-400/70 uppercase tracking-wider">Submit PR URL</div>
-                  <input
-                    type="text"
-                    value={prUrl}
-                    onChange={(e) => setPrUrl(e.target.value)}
-                    placeholder="https://gitlab.com/.../merge_requests/..."
-                    className="w-full bg-slate-800 text-slate-200 text-[10px] rounded px-2 py-1.5 border border-slate-700/50 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 placeholder:text-slate-600"
-                  />
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={async () => {
-                        if (!prUrl.trim() || !claimedIssue) return;
-                        setIsSubmitting(true);
-                        try {
-                          await onSolveIssue(claimedIssue.gitlabIssueId, prUrl.trim());
-                          setShowSolveForm(false);
-                          setPrUrl('');
-                        } finally {
-                          setIsSubmitting(false);
-                        }
-                      }}
-                      disabled={!prUrl.trim() || isSubmitting}
-                      className="flex-1 py-1 px-2 rounded bg-emerald-600 text-white text-[10px] font-medium hover:bg-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                    >
-                      {isSubmitting ? '...' : 'Submit'}
-                    </button>
-                    <button
-                      onClick={() => { setShowSolveForm(false); setPrUrl(''); }}
-                      className="py-1 px-2 rounded bg-slate-800 text-slate-400 text-[10px] font-medium hover:bg-slate-700 transition-colors border border-slate-700/50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Forfeit Confirmation (inline) */}
-              {showForfeitConfirm && (
-                <div className="bg-slate-900/80 border border-rose-500/20 rounded p-2.5 space-y-2">
-                  <p className="text-[10px] text-slate-400 leading-snug">Release this issue?</p>
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={async () => {
-                        if (!claimedIssue) return;
-                        setIsSubmitting(true);
-                        try {
-                          await onForfeitIssue(claimedIssue.gitlabIssueId);
-                          setShowForfeitConfirm(false);
-                        } finally {
-                          setIsSubmitting(false);
-                        }
-                      }}
-                      disabled={isSubmitting}
-                      className="flex-1 py-1 px-2 rounded bg-rose-600 text-white text-[10px] font-medium hover:bg-rose-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-1"
-                    >
-                      {isSubmitting ? '...' : 'Confirm'}
-                    </button>
-                    <button
-                      onClick={() => setShowForfeitConfirm(false)}
-                      className="py-1 px-2 rounded bg-slate-800 text-slate-400 text-[10px] font-medium hover:bg-slate-700 transition-colors border border-slate-700/50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
+                </>
               )}
             </div>
+
+            {/* Solve form (inline) */}
+            {showSolveForm && (
+              <div className="bg-[#000000] border border-emerald-500/20 rounded-lg p-2.5 space-y-2 animate-scaleIn">
+                <div className="text-[9px] font-semibold text-emerald-400/70 uppercase tracking-wider">Submit PR URL</div>
+                <input
+                  type="text"
+                  value={prUrl}
+                  onChange={(e) => setPrUrl(e.target.value)}
+                  placeholder="https://gitlab.com/.../merge_requests/..."
+                  className="w-full bg-[#2a2018] text-[#A57548] text-[10px] rounded-lg px-2 py-1.5 border border-[#3d2e1f] focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 placeholder:text-[#A57548]"
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={async () => {
+                      if (!prUrl.trim() || !claimedIssue) return;
+                      setIsSubmitting(true);
+                      try {
+                        await onSolveIssue(claimedIssue.gitlabIssueId, prUrl.trim());
+                        setShowSolveForm(false);
+                        setPrUrl('');
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                    disabled={!prUrl.trim() || isSubmitting}
+                    className="flex-1 py-1 px-2 rounded-lg bg-emerald-600 text-white text-[10px] font-medium hover:bg-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? '…' : 'Submit'}
+                  </button>
+                  <button
+                    onClick={() => { setShowSolveForm(false); setPrUrl(''); }}
+                    className="py-1 px-2 rounded-lg bg-[#2a2018] text-[#A57548] text-[10px] font-medium hover:bg-[#332818] transition-colors border border-[#3d2e1f]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Forfeit confirmation */}
+            {showForfeitConfirm && (
+              <div className="bg-[#000000] border border-rose-500/20 rounded-lg p-2.5 space-y-2 animate-scaleIn">
+                <p className="text-[10px] text-[#A57548] leading-snug">Release this issue back?</p>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={async () => {
+                      if (!claimedIssue) return;
+                      setIsSubmitting(true);
+                      try {
+                        await onForfeitIssue(claimedIssue.gitlabIssueId);
+                        setShowForfeitConfirm(false);
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                    disabled={isSubmitting}
+                    className="flex-1 py-1 px-2 rounded-lg bg-rose-600 text-white text-[10px] font-medium hover:bg-rose-500 transition-colors disabled:opacity-40"
+                  >
+                    {isSubmitting ? '…' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setShowForfeitConfirm(false)}
+                    className="py-1 px-2 rounded-lg bg-[#2a2018] text-[#A57548] text-[10px] font-medium hover:bg-[#332818] transition-colors border border-[#3d2e1f]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Footer (user) ─── */}
+      <div className="p-3 border-t border-[#2e2219] flex-shrink-0">
+        <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-[#2a2018] transition-colors cursor-pointer group">
+          {gitlabAvatarUrl ? (
+            <img
+              src={gitlabAvatarUrl}
+              alt="Profile"
+              className="w-7 h-7 rounded-full bg-[#2a2018] border border-[#3d2e1f] object-cover"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-[#2a2018] border border-[#3d2e1f] flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-[#A57548]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            </div>
           )}
-        </CollapsiblePanel>
+          <div className="flex-1 min-w-0">
+            <span className="text-[12px] font-medium text-[#A57548] truncate block">{gitlabUsername || 'User'}</span>
+          </div>
+          {onLogout && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onLogout(); }}
+              className="p-1 rounded text-[#A57548] hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
+              title="Logout"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
+          )}
+        </div>
       </div>
     </aside>
   );

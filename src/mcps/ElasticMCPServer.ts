@@ -46,8 +46,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // -- Elastic Client Factory --
 
 function createElasticClient(): ElasticClient {
-  const node = process.env.ELASTIC_NODE || "http://localhost:9200";
-  const options: any = { node };
+  const node = process.env.ELASTIC_NODE || "https://localhost:9200";
+  const isLocal = node.includes("localhost") || node.includes("127.0.0.1");
+  const options: any = { 
+    node,
+    ...(isLocal && { tls: { rejectUnauthorized: false } })
+  };
 
   if (process.env.ELASTIC_API_KEY) {
     options.auth = { apiKey: process.env.ELASTIC_API_KEY };

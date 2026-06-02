@@ -20,8 +20,12 @@ const fastify = Fastify({ logger: true });
 
 async function buildServer() {
   // Register CORS for React Frontend
+  const allowedOrigins = process.env.CORS_ORIGINS 
+    ? process.env.CORS_ORIGINS.split(',').map(url => url.trim()) 
+    : ['http://localhost:5173'];
+
   await fastify.register(cors, {
-    origin: 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
   });
 
@@ -201,6 +205,16 @@ async function buildServer() {
   });
   // 4c. POST /api/admin/sync-issues
   fastify.post('/api/admin/sync-issues', async (request: any, reply: any) => {
+    // Basic Admin Authorization
+    const adminKey = request.headers['x-admin-key'];
+    if (!process.env.ADMIN_SECRET_KEY) {
+      fastify.log.warn('ADMIN_SECRET_KEY is not set. Admin endpoints are disabled for security.');
+      return reply.status(403).send({ error: 'Admin endpoints disabled.' });
+    }
+    if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+      return reply.status(401).send({ error: 'Unauthorized. Invalid or missing X-Admin-Key header.' });
+    }
+
     const { repoUrl } = request.body as { repoUrl: string };
     try {
       if (!repoUrl) {
